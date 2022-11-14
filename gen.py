@@ -48,6 +48,26 @@ list_single_op = dict(
             ),
         ),
     ),
+    tile=dict(
+        op_name="Tile",
+        inputs=dict(
+            input=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[2, 3, 4, 5],
+            ),
+            repeats=dict(
+                dtype=TensorProto.INT64,
+                shape=[4],
+                initializer=np.array([7, 6, 4, 2], dtype=np.int64)
+            ),
+        ),
+        outputs=dict(
+            y=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[14, 18, 16, 10]
+            )
+        )
+    )
 )
 
 def gen_single_op(single_op, onnx_name, save_prefix="./models"):
