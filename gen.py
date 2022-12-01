@@ -67,7 +67,42 @@ list_single_op = dict(
                 shape=[14, 18, 16, 10]
             )
         )
-    )
+    ),
+    slice_neg_steps=dict(
+        op_name="Slice",
+        inputs=dict(
+            x=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[20, 10, 5],
+            ),
+            starts=dict(
+                dtype=TensorProto.INT64,
+                shape=[3],
+                initializer=np.array([20, 10, 4], dtype=np.int64),
+            ),
+            ends=dict(
+                dtype=TensorProto.INT64,
+                shape=[3],
+                initializer=np.array([0, 0, 1], dtype=np.int64),
+            ),
+            axes=dict(
+                dtype=TensorProto.INT64,
+                shape=[3],
+                initializer=np.array([0, 1, 2], dtype=np.int64),
+            ),
+            steps=dict(
+                dtype=TensorProto.INT64,
+                shape=[3],
+                initializer=np.array([-1, -3, -2], dtype=np.int64),
+            ),
+        ),
+        outputs=dict(
+            y=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[19, 3, 2],
+            ),
+        ),
+    ),
 )
 
 def gen_single_op(single_op, onnx_name, save_prefix="./models"):
