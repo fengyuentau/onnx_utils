@@ -103,6 +103,41 @@ list_single_op = dict(
             ),
         ),
     ),
+    reduce_symmetric_axes=dict(
+        op_name="ReduceMean",
+        inputs=dict(
+            data=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[1, 2, 4, 6],
+            ),
+            axes=dict(
+                dtype=TensorProto.INT64,
+                shape=[2],
+                initializer=np.array([0, -1], dtype=np.int64),
+            ),
+        ),
+        outputs=dict(
+            reduced=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[1, 2, 4, 1],
+            ),
+        ),
+    ),
+    softmax=dict(
+        op_name="Softmax",
+        inputs=dict(
+            input=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[1, 3, 2],
+            ),
+        ),
+        outputs=dict(
+            output=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[1, 3, 2],
+            ),
+        ),
+    ),
 )
 
 def gen_single_op(single_op, onnx_name, save_prefix="./models"):
