@@ -138,6 +138,26 @@ list_single_op = dict(
             ),
         ),
     ),
+    expand=dict(
+        op_name="Expand",
+        inputs=dict(
+            input=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[1, 10, 100, 1000],
+            ),
+            shape=dict(
+                dtype=TensorProto.INT64,
+                shape=[4],
+                constant=np.array([1000, 10, 100, 1000], dtype=np.int64),
+            ),
+        ),
+        outputs=dict(
+            output=dict(
+                dtype=TensorProto.FLOAT,
+                shape=[1000, 10, 100, 1000],
+            ),
+        ),
+    ),
 )
 
 def gen_single_op(single_op, onnx_name, save_prefix="./models"):
@@ -145,18 +165,34 @@ def gen_single_op(single_op, onnx_name, save_prefix="./models"):
     inputs = []
     input_names = []
     initializers = []
+    constant_nodes = []
+    # constant_nodes_outnames = []
     for name, prop in single_op.get("inputs").items():
         input_names.append(name)
 
         dtype = prop.get("dtype")
         shape = prop.get("shape")
-        inputs.append(
-            helper.make_tensor_value_info(name, dtype, shape)
-        )
+
+        constant = prop.get("constant")
+        if constant is None:
+            inputs.append(
+                helper.make_tensor_value_info(name, dtype, shape)
+            )
+
         initializer = prop.get("initializer")
         if initializer is not None:
             initializers.append(
                 helper.make_tensor(name, dtype, shape, initializer)
+            )
+
+        if constant is not None:
+            constant_nodes.append(
+                helper.make_node(
+                    op_type="Constant",
+                    inputs=[],
+                    outputs=[name],
+                    value=helper.make_tensor("const_tensor_{:s}".format(name), data_type=dtype, dims=shape, vals=constant)
+                )
             )
 
     # Create outputs (ValueInfoProto)
@@ -182,11 +218,11 @@ def gen_single_op(single_op, onnx_name, save_prefix="./models"):
 
     # Create the graph (GraphProto)
     graph_def = helper.make_graph(
-        [node_def],        # nodes
-        onnx_name,         # name
-        inputs,            # inputs
-        outputs,           # outputs
-        initializers       # initializer
+        constant_nodes + [node_def],        # nodes
+        onnx_name,                          # name
+        inputs,                             # inputs
+        outputs,                            # outputs
+        initializers                        # initializer
     )
 
     # Create the model (ModelProto)
