@@ -12,7 +12,23 @@ def make_gather_shape1d_axis1(x: ost.FLOAT[1, 512, 640, 3]) -> ost.FLOAT[1, 128,
     indices = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [128], np.arange(2, 512, 4, dtype=np.int64)))
     y = op.Gather(x, indices, axis=1)
     return y
+@ost.script()
+def make_tile_repeats1d(x: ost.FLOAT[2, 3, 4, 5]) -> ost.FLOAT[14, 18, 16, 10]:
+    repeats = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [4], np.array([7, 6, 4, 2], dtype=np.int64)))
+    y = op.Tile(x, repeats)
+    return y
+@ost.script()
+def make_slice_neg_steps(x: ost.FLOAT[20, 10, 5]) -> ost.FLOAT[19, 3 ,2]:
+    starts = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([20, 10, 4], dtype=np.int64)))
+    ends = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([0, 0, 1], dtype=np.int64)))
+    axes = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([0, 1, 2], dtype=np.int64)))
+    steps = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([-1, -3, -2], dtype=np.int64)))
+    y = op.Slice(x, starts, ends, axes, steps)
+    return y
 
+#######################
+### Quantization models
+#######################
 @ost.script()
 def make_qlinearsoftmax_opset13(x: ost.FLOAT[10, 2]) -> ost.FLOAT[10, 2]:
     # Create QuantizeLinear
