@@ -25,6 +25,12 @@ def make_slice_neg_steps(x: ost.FLOAT[20, 10, 5]) -> ost.FLOAT[19, 3 ,2]:
     steps = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([-1, -3, -2], dtype=np.int64)))
     y = op.Slice(x, starts, ends, axes, steps)
     return y
+@ost.script()
+def make_gather_shared_indices(x: ost.FLOAT[2, 1, 3, 4]) -> ost.FLOAT[3, 4]:
+    indices = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [], np.array([0], dtype=np.int64)))
+    y0 = op.Gather(x, indices, axis=0)
+    y1 = op.Gather(y0, indices, axis=0)
+    return y1
 
 #######################
 ### Quantization models
@@ -48,6 +54,9 @@ def make_qlinearsoftmax_opset13(x: ost.FLOAT[10, 2]) -> ost.FLOAT[10, 2]:
 models = dict(
     gather_shape1d_axis1=make_gather_shape1d_axis1,
     qlinearsoftmax_opset13=make_qlinearsoftmax_opset13,
+    tile_repeats1d=make_tile_repeats1d,
+    slice_neg_steps=make_slice_neg_steps,
+    gather_shared_indices=make_gather_shared_indices,
 )
 
 def make_and_save_model(k):
@@ -55,12 +64,13 @@ def make_and_save_model(k):
     try:
         onnx.checker.check_model(model_proto)
     except onnx.checker.ValidationError as e:
-        print(f"\t The model is invalid: {e}. Skipping ...")
+        print(f"\t Model {k} is invalid: {e}. Skipping ...")
         return False
     else:
         save_path = "./models/{}.onnx".format(k)
-        print("\t The model is valid! Saved to {}".format(save_path))
-        onnx.save(model_proto, save_path)
+        print(f"\t Model {k} is valid! Saved to {save_path}")
+        model_proto_ = onnx.shape_inference.infer_shapes(model_proto)
+        onnx.save(model_proto_, save_path)
         return True
 
 def main():
