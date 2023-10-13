@@ -31,6 +31,10 @@ def make_gather_shared_indices(x: ost.FLOAT[2, 1, 3, 4]) -> ost.FLOAT[3, 4]:
     y0 = op.Gather(x, indices, axis=0)
     y1 = op.Gather(y0, indices, axis=0)
     return y1
+@ost.script()
+def make_greater_input_dtype_int64(x: ost.INT64[27, 9]) -> ost.BOOL[27, 9]:
+    y = op.Greater(x, op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [], np.array([61], dtype=np.int64))))
+    return y
 
 #######################
 ### Quantization models
@@ -57,6 +61,7 @@ models = dict(
     tile_repeats1d=make_tile_repeats1d,
     slice_neg_steps=make_slice_neg_steps,
     gather_shared_indices=make_gather_shared_indices,
+    greater_input_dtype_int64=make_greater_input_dtype_int64,
 )
 
 def make_and_save_model(k):
