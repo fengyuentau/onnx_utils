@@ -14,7 +14,7 @@ for k, v in outputs.items():
     dtype = v["dtype"]
     dims = v["dims"]
     graph.output.append(onnx.helper.make_tensor_value_info(name, dtype, dims))
-new_model = onnx.helper.make_model(graph)
+new_model = onnx.helper.make_model(graph, full_check=True)
 onnx.checker.check_model(new_model)
 new_model = onnx.shape_inference.infer_shapes(new_model)
 onnx.save(new_model, model_path.split(".onnx")[0] + ".tmp.onnx")

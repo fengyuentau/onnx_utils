@@ -36,9 +36,9 @@ def make_greater_input_dtype_int64(x: ost.INT64[27, 9]) -> ost.BOOL[27, 9]:
     y = op.Greater(x, op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [], np.array([61], dtype=np.int64))))
     return y
 
-#######################
-### Quantization models
-#######################
+#######################################
+### Quantized models from other domains
+#######################################
 @ost.script()
 def make_qlinearsoftmax_opset13(x: ost.FLOAT[10, 2]) -> ost.FLOAT[10, 2]:
     # Create QuantizeLinear
@@ -67,7 +67,7 @@ models = dict(
 def make_and_save_model(k):
     model_proto = models[k].to_model_proto()
     try:
-        onnx.checker.check_model(model_proto)
+        onnx.checker.check_model(model_proto, full_check=True)
     except onnx.checker.ValidationError as e:
         print(f"\t Model {k} is invalid: {e}. Skipping ...")
         return False
