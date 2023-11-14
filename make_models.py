@@ -7,16 +7,20 @@ import onnxscript as ost
 from onnxscript import opset19 as op
 msop = ost.values.Opset(domain="com.microsoft", version=1)
 
+np.random.seed(0)
+
 @ost.script()
 def make_gather_shape1d_axis1(x: ost.FLOAT[1, 512, 640, 3]) -> ost.FLOAT[1, 128, 640, 3]:
     indices = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [128], np.arange(2, 512, 4, dtype=np.int64)))
     y = op.Gather(x, indices, axis=1)
     return y
+
 @ost.script()
 def make_tile_repeats1d(x: ost.FLOAT[2, 3, 4, 5]) -> ost.FLOAT[14, 18, 16, 10]:
     repeats = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [4], np.array([7, 6, 4, 2], dtype=np.int64)))
     y = op.Tile(x, repeats)
     return y
+
 @ost.script()
 def make_slice_neg_steps(x: ost.FLOAT[20, 10, 5]) -> ost.FLOAT[19, 3 ,2]:
     starts = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([20, 10, 4], dtype=np.int64)))
@@ -25,16 +29,63 @@ def make_slice_neg_steps(x: ost.FLOAT[20, 10, 5]) -> ost.FLOAT[19, 3 ,2]:
     steps = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([-1, -3, -2], dtype=np.int64)))
     y = op.Slice(x, starts, ends, axes, steps)
     return y
+
 @ost.script()
 def make_gather_shared_indices(x: ost.FLOAT[2, 1, 3, 4]) -> ost.FLOAT[3, 4]:
     indices = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [], np.array([0], dtype=np.int64)))
     y0 = op.Gather(x, indices, axis=0)
     y1 = op.Gather(y0, indices, axis=0)
     return y1
+
 @ost.script()
 def make_greater_input_dtype_int64(x: ost.INT64[27, 9]) -> ost.BOOL[27, 9]:
     y = op.Greater(x, op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [], np.array([61], dtype=np.int64))))
     return y
+
+qkv_matmul_weight_val = np.random.randn(768, 2304).astype(np.float32)
+qkv_add_bias_val = np.random.randn(2304).astype(np.float32)
+@ost.script()
+def make_attention_subgraph(x: ost.FLOAT[1, 197, 768]) -> ost.FLOAT[1, 197, 768]:
+    transpose = op.Transpose(x, perm=[1, 0, 2])
+    qkv_matmul_weight = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.FLOAT, [768, 2304], qkv_matmul_weight_val))
+    qkv_matmul = op.MatMul(transpose, qkv_matmul_weight)
+
+    qkv_add_bias = op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.FLOAT, [2304], qkv_add_bias_val))
+    qkv_add = op.Add(qkv_add_bias, qkv_matmul)
+
+    # q path
+    q_path_slice = op.Slice(qkv_add,
+                        op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [1], np.array([0], dtype=np.int64))),
+                        op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [1], np.array([768], dtype=np.int64))),
+                        op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [1], np.array([-1], dtype=np.int64))))
+    q_path_reshape = op.Reshape(q_path_slice, op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([197, 12, 64], dtype=np.int64))), allowzero=0)
+    q_path_transpose = op.Transpose(q_path_reshape, perm=[1, 0, 2])
+    q_path_div = op.Div(q_path_transpose, op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.FLOAT, [], np.array([8], dtype=np.float32))))
+    # k path
+    k_path_slice = op.Slice(qkv_add,
+                        op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [1], np.array([768], dtype=np.int64))),
+                        op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [1], np.array([1536], dtype=np.int64))),
+                        op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [1], np.array([-1], dtype=np.int64))))
+    k_path_reshape = op.Reshape(k_path_slice, op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([197, 12, 64], dtype=np.int64))), allowzero=0)
+    k_path_transpose = op.Transpose(k_path_reshape, perm=[1, 2, 0])
+
+    # qk path
+    qk_matmul = op.MatMul(q_path_div, k_path_transpose)
+    qk_softmax = op.Softmax(qk_matmul)
+
+    # v path
+    v_path_slice = op.Slice(qkv_add,
+                        op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [1], np.array([1536], dtype=np.int64))),
+                        op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [1], np.array([2304], dtype=np.int64))),
+                        op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [1], np.array([-1], dtype=np.int64))))
+    v_path_reshape = op.Reshape(v_path_slice, op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([197, 12, 64], dtype=np.int64))), allowzero=0)
+    v_path_transpose = op.Transpose(v_path_reshape, perm=[1, 0, 2])
+
+    # matmul
+    matmul = op.MatMul(qk_softmax, v_path_transpose)
+    trans = op.Transpose(matmul, perm=[1, 0, 2])
+    reshape = op.Reshape(trans, op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([1, 197, 768], dtype=np.int64))))
+    return reshape
 
 #######################################
 ### Quantized models from other domains
@@ -62,6 +113,7 @@ models = dict(
     slice_neg_steps=make_slice_neg_steps,
     gather_shared_indices=make_gather_shared_indices,
     greater_input_dtype_int64=make_greater_input_dtype_int64,
+    attention_subgraph=make_attention_subgraph,
 )
 
 def make_and_save_model(k):
