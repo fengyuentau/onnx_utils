@@ -147,6 +147,9 @@ def make_attention_single_head_subgraph(x: ost.FLOAT[batch_size, sequence_length
     trans = op.Transpose(matmul, perm=[1, 0, 2])
     reshape = op.Reshape(trans, op.Constant(value=onnx.helper.make_tensor("", onnx.TensorProto.INT64, [3], np.array([batch_size, sequence_length, v_hidden_size], dtype=np.int64))))
     return reshape
+@ost.script()
+def make_matmul(A: ost.FLOAT[12, 197, 197], B: ost.FLOAT[12, 197, 64]) -> ost.FLOAT[12, 197, 64]:
+    return op.MatMul(A, B)
 
 #######################################
 ### Quantized models from other domains
@@ -176,6 +179,7 @@ models = dict(
     greater_input_dtype_int64=make_greater_input_dtype_int64,
     attention_subgraph=make_attention_subgraph,
     attention_single_head_subgraph=make_attention_single_head_subgraph,
+    matmul=make_matmul,
 )
 
 def make_and_save_model(k):
